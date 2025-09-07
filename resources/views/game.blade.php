@@ -1,11 +1,5 @@
 <x-main-layout pageTitle="Countries & Capitals Quiz">
 
-    {{-- @include('components.question', [
-        'current_question' => 0,
-        'total_question'   => 0,
-        'country'         => 'XXXXXX',
-    ]) --}}
-
     <div class="container">
 
         <x-question :country="$country" :currentQuestion="$currentQuestion" :totalQuestion="$totalQuestions"/>

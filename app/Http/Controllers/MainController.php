@@ -12,19 +12,23 @@ class MainController extends Controller
 {
     private $app_data;
 
-    public function __construct() {
+    public function __construct()
+    {
         $this->app_data = require(app_path('app_data.php'));
     }
 
-    public function showData()  {
+    public function showData()
+    {
         return response()->json($this->app_data);
     }
 
-    public function startGame() : View {
+    public function startGame(): View
+    {
         return view('home');
     }
 
-    public function prepareGame(Request $request): RedirectResponse {
+    public function prepareGame(Request $request): RedirectResponse
+    {
         $request->validate(
             [
                 'total_questions' => 'required|integer|min:3|max:30'
@@ -52,23 +56,24 @@ class MainController extends Controller
         return redirect()->route('game');
     }
 
-    private function prepareQuiz($total_questions){
+    private function prepareQuiz($total_questions)
+    {
 
         $questions = [];
         $total_countries = count($this->app_data);
 
-        $indexes = range(0, $total_countries - 1);
+        $indexes = range(0, $total_countries);
         shuffle($indexes);
         $indexes = array_slice($indexes, 0, $total_questions);
 
         $question_number = 1;
-        foreach($indexes as $index){
+        foreach ($indexes as $index) {
             $question['question_number'] = $question_number++;
             $question['country'] = $this->app_data[$index]['country'];
             $question['correct_answer'] = $this->app_data[$index]['capital'];
 
             $other_capitals = array_column($this->app_data, 'capital');
-            $other_capitals = array_diff($other_capitals,[$question['correct_answer']]);
+            $other_capitals = array_diff($other_capitals, [$question['correct_answer']]);
             shuffle($other_capitals);
 
             $question['wrong_answers'] = array_slice($other_capitals, 0, 3);
@@ -80,25 +85,28 @@ class MainController extends Controller
         return $questions;
     }
 
-    public function game() : View {
+    public function game(): View
+    {
         $quiz = session('quiz');
         $total_questions = session('total_questions');
         $current_question = session('current_question');
 
-        $answers = $quiz[$current_question]['wrong_answers'];
-        $answers[] = $quiz[$current_question]['correct_answer'];
+        // Corrija o índice:
+        $answers = $quiz[$current_question - 1]['wrong_answers'];
+        $answers[] = $quiz[$current_question - 1]['correct_answer'];
 
         shuffle($answers);
 
         return view('game')->with([
-            'country'         => $quiz[$current_question]['country'],
+            'country'         => $quiz[$current_question - 1]['country'],
             'totalQuestions'  => $total_questions,
             'currentQuestion' => $current_question,
             'answers'         => $answers
         ]);
     }
 
-    public function answer($answer)   {
+    public function answer($answer)
+    {
 
         try {
             $answer = Crypt::decryptString($answer);
@@ -109,17 +117,17 @@ class MainController extends Controller
         //game logic
 
         $quiz = session('quiz');
-        $current_question = session('current_question') - 1;
-        $correct_answer = $quiz[$current_question]['correct_answer'];
+        $current_question = session('current_question');
+        $correct_answer = $quiz[$current_question - 1]['correct_answer'];
         $correct_answers = session('correct_answers');
         $wrong_answers = session('wrong_answers');
 
         if ($answer === $correct_answer) {
             $correct_answers++;
-            $quiz[$current_question]['correct'] = true;
+            $quiz[$current_question - 1]['correct'] = true;
         } else {
             $wrong_answers++;
-            $quiz[$current_question]['correct'] = false;
+            $quiz[$current_question - 1]['correct'] = false;
         }
 
         session()->put([
@@ -129,15 +137,42 @@ class MainController extends Controller
         ]);
 
         $data = [
-            'country'        => $quiz[$current_question]['country'],
-            'correct_answer' => $correct_answer,
-            'choice_answer'  => $answer,
+            'country'         => $quiz[$current_question - 1]['country'],
+            'correct_answer'  => $correct_answer,
+            'choice_answer'   => $answer,
             'currentQuestion' => $current_question,
             'totalQuestions'  => session('total_questions')
         ];
 
-        return view('answer')->with($data);
-
+        return view('answer_result')->with($data);
     }
 
+    public function nextQuestion(): RedirectResponse
+    {
+        $current_question = session('current_question');
+        $total_questions = session('total_questions');
+
+        if ($current_question < $total_questions) {
+            $current_question++;
+            session()->put('current_question', $current_question);
+            return redirect()->route('game');
+        } else {
+            return redirect()->route('show_results');
+        }
+    }
+
+    public function showResults()
+    {
+
+        $total_questions = session('total_questions');
+        $correct_answers = session('correct_answers');
+        $wrong_answers = session('wrong_answers');
+
+        return view('final_results')->with([
+            'total_questions' => $total_questions,
+            'correct_answers' => $correct_answers,
+            'wrong_answers'   => $wrong_answers,
+            'percentage'      => round(($correct_answers / $total_questions) * 100, 2)
+        ]);
+    }
 }
